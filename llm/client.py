@@ -15,6 +15,10 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 
+def _normalize_key(value: str | None) -> str:
+    return (value or "").strip()
+
+
 class LLMClient:
     """Wrapper around Anthropic or OpenRouter APIs with mock responses when no API key is set."""
 
@@ -22,19 +26,32 @@ class LLMClient:
         self.settings = get_settings()
         self._override = override or {}
         self._anthropic_client: Any = None
+        self._from_ui = self._override.get("source") == "ui"
 
-        # Effective values — override takes precedence over env-based settings
-        eff_api_key = self._override.get("openrouter_api_key") or self.settings.openrouter_api_key
-        eff_model = self._override.get("openrouter_model") or self.settings.openrouter_model
-        mock_forced = bool(self._override.get("use_mock_llm", False))
+        if self._from_ui:
+            # Per-run UI settings — do not fall back to server env for credentials
+            eff_api_key = _normalize_key(self._override.get("openrouter_api_key"))
+            eff_model = _normalize_key(self._override.get("openrouter_model")) or self.settings.openrouter_model
+            mock_forced = bool(self._override.get("use_mock_llm", False))
+        else:
+            eff_api_key = _normalize_key(
+                self._override.get("openrouter_api_key") or self.settings.openrouter_api_key
+            )
+            eff_model = self._override.get("openrouter_model") or self.settings.openrouter_model
+            if "use_mock_llm" in self._override:
+                mock_forced = bool(self._override.get("use_mock_llm"))
+            else:
+                mock_forced = self.settings.use_mock_llm
 
-        self._effective_api_key: str = eff_api_key or ""
-        self._effective_model: str = eff_model or ""
-        # llm_enabled: False if mock is forced OR if we have no effective API key
-        # This respects UI-provided credentials (override) not just env vars
+        self._effective_api_key: str = eff_api_key
+        self._effective_model: str = eff_model or self.settings.openrouter_model
         self.llm_enabled: bool = (not mock_forced) and bool(self._effective_api_key)
 
-        if self.settings.resolved_llm_provider == "anthropic" and self.llm_enabled:
+        if (
+            not self._from_ui
+            and self.settings.resolved_llm_provider == "anthropic"
+            and self.llm_enabled
+        ):
             from anthropic import Anthropic
 
             self._anthropic_client = Anthropic(api_key=self.settings.anthropic_api_key)
@@ -44,8 +61,7 @@ class LLMClient:
             logger.info("Using mock LLM response (no API key or mock mode enabled)")
             return self._mock_response(prompt)
 
-        # Determine provider: override takes precedence, then fall back to env-based setting
-        if "openrouter_api_key" in self._override:
+        if self._from_ui or self._override.get("openrouter_api_key"):
             provider = "openrouter"
         else:
             provider = self.settings.resolved_llm_provider

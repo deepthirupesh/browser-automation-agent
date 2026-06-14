@@ -17,12 +17,21 @@ export function RunForm({ onRunStarted }: RunFormProps) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const apiKey = settings.openrouterApiKey.trim();
+    if (!settings.useMockLlm && !apiKey) {
+      setError(
+        'OpenRouter API key is required. Add it in Settings (☰ menu) or enable Use Mock LLM.',
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await api.startRun({
         url,
         intent,
-        openrouter_api_key: settings.openrouterApiKey || undefined,
+        openrouter_api_key: apiKey,
         openrouter_model: settings.openrouterModel,
         use_mock_llm: settings.useMockLlm,
         max_retries: settings.maxRetries,

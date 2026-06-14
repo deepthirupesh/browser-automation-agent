@@ -1,83 +1,89 @@
-import asyncio
-import json
-import os
-from pathlib import Path
-from playwright.async_api import async_playwright, expect
-
 async def run(page, url: str, screenshot_dir: str) -> dict:
-    """
-    Flow: login_with_invalid_credentials
-    Tests logging in with invalid credentials on OrangeHRM demo site.
-    """
-    screenshots = []
+    import os
+    from playwright.async_api import expect
+    
     flow_name = "login_with_invalid_credentials"
+    screenshots = []
     
     try:
-        # Load credentials from JSON file
-        credentials_file = r"D:\04_Self\10_Agents\02_Projects\04_Browser_Automation_Agent\browser-automation-agent\test_data\credentials.json"
-        credentials = {"username": "Admin", "password": "admin123"}
-        
-        if os.path.exists(credentials_file):
-            with open(credentials_file, 'r') as f:
-                creds_data = json.load(f)
-                if 'login' in creds_data:
-                    credentials = creds_data['login']
-        
         # Navigate to login page
-        await page.goto(url, wait_until="domcontentloaded")
-        await page.wait_for_load_state("networkidle")
+        await page.goto(url)
+        await page.wait_for_load_state('networkidle')
         
-        # Wait for login form to be visible
-        await page.wait_for_selector("input[name='username']", timeout=10000)
+        # Take initial screenshot
+        initial_screenshot = os.path.join(screenshot_dir, f"{flow_name}_initial.png")
+        await page.screenshot(path=initial_screenshot, full_page=True)
+        screenshots.append(initial_screenshot)
         
-        # Use invalid credentials (append "_invalid" to the actual credentials)
-        invalid_username = credentials.get("username", "Admin") + "_invalid"
-        invalid_password = credentials.get("password", "admin123") + "_invalid"
+        # Use invalid credentials for both fields as this is an invalid_both scenario
+        invalid_username = "nonexistent_user_qa"
+        invalid_password = "WrongPassword!123"
         
-        # Fill username field with invalid credentials
-        username_field = page.locator("input[name='username']").first
-        await username_field.fill(invalid_username)
+        # Fill username field
+        username_input = page.get_by_placeholder("Username").or_(page.locator("input[name='username']")).or_(page.locator("input[type='text']")).first
+        await username_input.fill(invalid_username)
         
-        # Fill password field with invalid credentials
-        password_field = page.locator("input[name='password']").first
-        await password_field.fill(invalid_password)
+        # Fill password field
+        password_input = page.get_by_placeholder("Password").or_(page.locator("input[name='password']")).or_(page.locator("input[type='password']")).first
+        await password_input.fill(invalid_password)
         
         # Take screenshot before login attempt
-        screenshot_path_before = os.path.join(screenshot_dir, f"{flow_name}_before_submit.png")
-        await page.screenshot(path=screenshot_path_before, full_page=True)
-        screenshots.append(screenshot_path_before)
+        before_login_screenshot = os.path.join(screenshot_dir, f"{flow_name}_before_login.png")
+        await page.screenshot(path=before_login_screenshot, full_page=True)
+        screenshots.append(before_login_screenshot)
         
         # Click login button
-        login_button = page.locator("button[type='submit']").first
+        login_button = page.get_by_role("button", name="Login").or_(page.locator("button[type='submit']")).or_(page.locator(".oxd-button")).first
         await login_button.click()
         
-        # Wait for error message to appear (indicating failed login)
-        await page.wait_for_timeout(2000)  # Allow time for error to appear
+        # Wait for response
+        await page.wait_for_timeout(3000)
         
-        # Check for error message or stay on login page
-        error_message = page.locator("div[role='alert'], .oxd-alert-content, span.error").first
+        # Take screenshot after login attempt
+        after_login_screenshot = os.path.join(screenshot_dir, f"{flow_name}_after_login.png")
+        await page.screenshot(path=after_login_screenshot, full_page=True)
+        screenshots.append(after_login_screenshot)
         
-        # Wait for error message to be visible
-        try:
-            await expect(error_message).to_be_visible(timeout=5000)
-        except:
-            # If no specific error element, check if we're still on login page
-            await page.wait_for_selector("input[name='username']", timeout=5000)
-        
-        # Take screenshot after login attempt showing error
-        screenshot_path_after = os.path.join(screenshot_dir, f"{flow_name}_after_submit.png")
-        await page.screenshot(path=screenshot_path_after, full_page=True)
-        screenshots.append(screenshot_path_after)
-        
-        # Verify we're still on login page (not logged in)
+        # Assert that login failed - check for error message or that we're still on login page
         current_url = page.url
-        if "login" not in current_url.lower():
+        
+        # Check for error message (multiple possible selectors)
+        error_indicators = [
+            page.locator(".oxd-alert-content-text"),
+            page.locator(".oxd-text--toast-message"),
+            page.locator("[role='alert']"),
+            page.locator(".error-message"),
+            page.get_by_text("Invalid credentials"),
+            page.get_by_text("Login failed"),
+            page.get_by_text("Authentication failed")
+        ]
+        
+        error_found = False
+        for error_locator in error_indicators:
+            try:
+                if await error_locator.count() > 0:
+                    await expect(error_locator).to_be_visible(timeout=5000)
+                    error_found = True
+                    break
+            except:
+                continue
+        
+        # Also verify we're still on login page (URL contains 'login' or 'auth')
+        still_on_login = 'login' in current_url.lower() or 'auth' in current_url.lower()
+        
+        # Assert login failure
+        if not error_found and not still_on_login:
             return {
                 "status": "fail",
-                "error": "Expected to remain on login page after invalid login attempt, but URL changed to: " + current_url,
+                "error": f"Expected login to fail with invalid credentials, but no error message found and URL changed to: {current_url}",
                 "flow": flow_name,
                 "screenshots": screenshots
             }
+        
+        # Take final success screenshot
+        final_screenshot = os.path.join(screenshot_dir, f"{flow_name}_success.png")
+        await page.screenshot(path=final_screenshot, full_page=True)
+        screenshots.append(final_screenshot)
         
         return {
             "status": "success",
@@ -86,13 +92,13 @@ async def run(page, url: str, screenshot_dir: str) -> dict:
         }
         
     except Exception as e:
-        screenshot_path_error = os.path.join(screenshot_dir, f"{flow_name}_error.png")
+        error_screenshot = os.path.join(screenshot_dir, f"{flow_name}_error.png")
         try:
-            await page.screenshot(path=screenshot_path_error, full_page=True)
-            screenshots.append(screenshot_path_error)
+            await page.screenshot(path=error_screenshot, full_page=True)
+            screenshots.append(error_screenshot)
         except:
             pass
-        
+            
         return {
             "status": "fail",
             "error": str(e),

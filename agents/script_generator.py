@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
 from llm.client import LLMClient
 from state.schema import AgentState
 from storage.script_store import ScriptStore, compute_flow_hash
-from test_data import credentials_file_path, get_login_credentials
+from test_data import (
+    classify_auth_scenario,
+    credentials_file_path,
+    get_credentials_for_scenario,
+    get_invalid_login_credentials,
+    get_login_credentials,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +35,23 @@ def _flow_needs_credentials(flow: str) -> bool:
 def _credentials_context(flow: str) -> str:
     if not _flow_needs_credentials(flow):
         return ""
-    creds = get_login_credentials()
+    valid = get_login_credentials()
+    invalid = get_invalid_login_credentials()
+    scenario = classify_auth_scenario(flow)
     path = credentials_file_path()
     return (
         f"\nTest credentials file: {path}\n"
-        f"Default username: {creds['username']}\n"
-        f"Default password: {creds['password']}\n"
-        "Load credentials from the JSON file under the 'login' key when filling auth forms.\n"
+        f"Valid login (happy-path): username={valid['username']}, password={valid['password']}\n"
+        f"Invalid fixtures: username={invalid['username']}, password={invalid['password']}\n"
+        f"Flow scenario classification: {scenario}\n"
+        "\nQA credential rules — match credentials to the flow scenario:\n"
+        "- valid/successful/happy-path flows: use valid login credentials; assert success\n"
+        "- invalid_password flows: valid username + invalid password only\n"
+        "- invalid_username flows: invalid username + valid password only\n"
+        "- invalid/failed/unauthorized flows: invalid credentials for both fields\n"
+        "- empty/blank/missing-field flows: leave relevant fields empty; assert validation\n"
+        "- Mutate ONE credential field at a time for negative login tests\n"
+        "- Assert the outcome implied by the flow name (error vs redirect/dashboard)\n"
     )
 
 
@@ -43,19 +60,16 @@ def _fallback_flow_actions(flow: str) -> str:
     flow_lower = flow.lower()
 
     if _flow_needs_credentials(flow):
-        creds = get_login_credentials()
+        creds = get_credentials_for_scenario(flow)
         creds_path = str(credentials_file_path()).replace("\\", "\\\\")
-        default_creds = (
-            '{"username": "' + creds["username"] + '", "password": "' + creds["password"] + '"}'
-        )
+        scenario = classify_auth_scenario(flow)
         return f'''
 import json
 from pathlib import Path
 
 creds_path = Path("{creds_path}")
-creds = {default_creds}
-if creds_path.exists():
-    creds = json.loads(creds_path.read_text(encoding="utf-8")).get("login", creds)
+creds = {json.dumps(creds)}
+# Scenario: {scenario} — credentials chosen to match flow intent
 
 username = page.locator(
     'input[name="username"], input[type="email"], input[name="email"]'
