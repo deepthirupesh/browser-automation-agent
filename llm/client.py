@@ -1,4 +1,4 @@
-"""Anthropic LLM client with deterministic mock fallback for offline/CI runs."""
+"""LLM client (Anthropic or OpenRouter) with deterministic mock fallback for offline/CI runs."""
 
 from __future__ import annotations
 
@@ -8,36 +8,84 @@ import re
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from config import get_settings
 
 logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    """Wrapper around Anthropic API with mock responses when no API key is set."""
+    """Wrapper around Anthropic or OpenRouter APIs with mock responses when no API key is set."""
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self._client: Any = None
-        if self.settings.llm_enabled:
+        self._anthropic_client: Any = None
+        if self.settings.resolved_llm_provider == "anthropic":
             from anthropic import Anthropic
 
-            self._client = Anthropic(api_key=self.settings.anthropic_api_key)
+            self._anthropic_client = Anthropic(api_key=self.settings.anthropic_api_key)
 
     def complete(self, prompt: str, system: str = "") -> str:
         if not self.settings.llm_enabled:
             logger.info("Using mock LLM response (no API key or mock mode enabled)")
             return self._mock_response(prompt)
 
-        assert self._client is not None
-        message = self._client.messages.create(
-            model=self.settings.anthropic_model,
+        provider = self.settings.resolved_llm_provider
+        if provider == "anthropic":
+            return self._complete_anthropic(prompt, system)
+        if provider == "openrouter":
+            return self._complete_openrouter(prompt, system)
+        raise RuntimeError(f"Unsupported LLM provider: {provider}")
+
+    def _complete_anthropic(self, prompt: str, system: str) -> str:
+        assert self._anthropic_client is not None
+        message = self._anthropic_client.messages.create(
+            model=self.settings.llm_model,
             max_tokens=4096,
             system=system or "You are a browser automation expert. Respond concisely.",
             messages=[{"role": "user", "content": prompt}],
         )
         text_blocks = [block.text for block in message.content if block.type == "text"]
         return "\n".join(text_blocks)
+
+    def _complete_openrouter(self, prompt: str, system: str) -> str:
+        url = f"{self.settings.openrouter_base_url.rstrip('/')}/chat/completions"
+        messages: list[dict[str, str]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        else:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": "You are a browser automation expert. Respond concisely.",
+                }
+            )
+        messages.append({"role": "user", "content": prompt})
+
+        response = httpx.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {self.settings.openrouter_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self.settings.llm_model,
+                "messages": messages,
+                "max_tokens": 4096,
+            },
+            timeout=120.0,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"OpenRouter request failed ({response.status_code}): {response.text}"
+            )
+
+        data = response.json()
+        try:
+            return data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise RuntimeError(f"Unexpected OpenRouter response: {data}") from exc
 
     def complete_json(self, prompt: str, system: str = "") -> dict[str, Any]:
         raw = self.complete(prompt, system=system)

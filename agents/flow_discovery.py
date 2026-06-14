@@ -29,9 +29,9 @@ def _parse_flows(raw: str) -> list[str]:
         cleaned = re.sub(r"\n?```$", "", cleaned)
     data = json.loads(cleaned)
     if isinstance(data, list):
-        return [str(item) for item in data[:5]]
+        return [str(item) for item in data[:10]]
     if isinstance(data, dict) and "flows" in data:
-        return [str(item) for item in data["flows"][:5]]
+        return [str(item) for item in data["flows"][:10]]
     raise ValueError("Unexpected flow discovery response format")
 
 
@@ -48,7 +48,13 @@ def discover_flows(state: AgentState) -> dict[str, Any]:
         if client.settings.llm_enabled:
             raw = client.complete(prompt, system=system)
             flows = _parse_flows(raw)
+            logger.info('===============================================')
+            logger.info(f"Flows: {flows}")
+            logger.info('===============================================')
         else:
+            logger.info('===============================================')
+            logger.info(f"Prompt: {prompt}")
+            logger.info('===============================================')
             flows = _default_flows(intent)
     except Exception as exc:
         logger.info("Flow discovery fallback due to error: %s", exc)

@@ -1,0 +1,25 @@
+{
+  "run_id": "test-run",
+  "url": "https://example.com",
+  "intent": "Test checkout flow",
+  "flows_total": 2,
+  "flows_passed": 2,
+  "auto_repairs": 0,
+  "retries_used": 0,
+  "regressions": 0,
+  "status": "success",
+  "screenshots": [],
+  "execution_results": [
+    {
+      "status": "success"
+    },
+    {
+      "status": "success"
+    }
+  ],
+  "script_sources": {},
+  "flows_reused": [],
+  "flows_generated": [],
+  "flows_regenerated": [],
+  "generated_at": "2026-06-14T02:47:10.227960+00:00"
+}

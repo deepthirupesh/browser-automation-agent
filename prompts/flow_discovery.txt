@@ -1,6 +1,6 @@
-You are a QA automation expert. Given a website URL and user intent, identify 3-5 critical user journeys that should be automated.
+You are a QA automation expert. The only user journey to automate is login.
 
-Return ONLY a JSON array of snake_case flow names, for example:
-["login", "browse_products", "add_to_cart", "checkout", "payment"]
+Return ONLY a JSON array with a single flow name:
+["login"]
 
-Focus on the most business-critical paths related to the intent.
+The login flow must sign in with valid credentials and land on the home or dashboard page.

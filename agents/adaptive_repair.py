@@ -7,7 +7,7 @@ import textwrap
 from typing import Any
 
 from llm.client import LLMClient
-from agents.script_generator import persist_script_for_flow
+from agents.script_generator import build_script, persist_script_for_flow, _is_login_flow
 from state.schema import AgentState
 
 logger = logging.getLogger(__name__)
@@ -91,10 +91,14 @@ def repair_script(state: AgentState) -> dict[str, Any]:
 
     repaired_script = failed_script
     try:
-        if client.settings.llm_enabled:
+        if _is_login_flow(flow):
+            repaired_script = build_script(flow, state["url"])
+        elif client.settings.llm_enabled:
             system = client.load_prompt("repair")
             response = client.complete_json(prompt, system=system)
             repaired_script = response.get("repaired_script", failed_script)
+            if _is_login_flow(flow) and "home_page_verified" not in repaired_script:
+                repaired_script = build_script(flow, state["url"])
         else:
             repaired_script = _apply_heuristic_repair(failed_script, diagnosis)
     except Exception as exc:

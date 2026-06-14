@@ -4,7 +4,7 @@ Production-ready multi-agent browser automation system built from the PRD. It di
 
 ## Features
 
-- **Flow Discovery** — identifies 3–5 critical user journeys from URL + intent
+- **Flow Discovery** — identifies up to 10 critical user journeys from URL + intent
 - **Script Generator** — hybrid local storage: reuses cached scripts, generates only new/changed flows
 - **Executor** — runs scripts in headless Chromium
 - **Error Diagnosis** — classifies failures (selector, timeout, network, etc.)
@@ -53,13 +53,17 @@ curl http://localhost:8000/report/{run_id}
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | — | Anthropic API key for Claude Sonnet 4.6 |
+| `OPENROUTER_API_KEY` | — | OpenRouter API key (used when `LLM_PROVIDER=openrouter` or `auto`) |
+| `OPENROUTER_MODEL` | `anthropic/claude-sonnet-4` | Model ID on OpenRouter |
+| `LLM_PROVIDER` | `auto` | `auto`, `openrouter`, or `anthropic` |
+| `ANTHROPIC_API_KEY` | — | Direct Anthropic API key (alternative to OpenRouter) |
+| `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Anthropic model when using direct API |
 | `USE_MOCK_LLM` | `false` | Use deterministic mock responses (CI/offline) |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis for run state |
 | `MAX_RETRIES` | `3` | Max repair retries before human escalation |
 | `MAX_REPAIR_BEFORE_REGENERATE` | `2` | Repairs per flow before full script regeneration |
 
-Set `USE_MOCK_LLM=true` to run without an API key. Set `ANTHROPIC_API_KEY` for live LLM-powered discovery, diagnosis, and repair.
+Set `USE_MOCK_LLM=true` to run without an API key. For live LLM-powered discovery, diagnosis, and repair, set `OPENROUTER_API_KEY` (recommended) or `ANTHROPIC_API_KEY`. With `LLM_PROVIDER=auto`, OpenRouter is used when its key is set.
 
 ## Script Storage (Hybrid Strategy)
 
@@ -97,7 +101,7 @@ browser-automation-agent/
 ├── orchestrator/     # LangGraph StateGraph
 ├── state/            # AgentState schema
 ├── prompts/          # LLM prompt templates
-├── llm/              # Anthropic client + mock fallback
+├── llm/              # Anthropic / OpenRouter client + mock fallback
 ├── storage/          # Redis run store + local script store
 ├── scripts/          # Persisted Playwright scripts per site
 ├── screenshots/      # baseline/ and current/
