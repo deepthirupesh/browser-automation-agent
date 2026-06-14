@@ -49,6 +49,7 @@ def generate_report(state: AgentState) -> dict[str, Any]:
         "flows_generated": state.get("flows_generated", []),
         "flows_regenerated": state.get("flows_regenerated", []),
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "dashboard_url": f"/dashboard/{state.get('run_id', 'unknown')}",
     }
 
     run_id = state.get("run_id", "unknown")

@@ -17,10 +17,10 @@ def test_login_credentials_values() -> None:
     assert creds["password"] == "admin123"
 
 
-def test_login_script_uses_credentials() -> None:
+def test_login_fallback_script_uses_credentials() -> None:
     from agents.script_generator import build_script
 
-    script = build_script("login", "https://example.com")
+    script = build_script("login", "https://example.com", "Test login flow")
     assert "Admin" in script
     assert "admin123" in script
     assert 'input[name="password"]' in script

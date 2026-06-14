@@ -36,7 +36,7 @@ cd browser-automation-agent
 docker compose up --build
 ```
 
-API available at `http://localhost:8000`. Docs at `http://localhost:8000/docs`.
+API available at `http://localhost:8000`. **Visual dashboard** at `http://localhost:8000/dashboard`. Docs at `http://localhost:8000/docs`.
 
 ### Run an automation
 
@@ -44,9 +44,11 @@ API available at `http://localhost:8000`. Docs at `http://localhost:8000/docs`.
 curl -X POST http://localhost:8000/run \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com", "intent": "Test checkout flow"}'
+# Response includes dashboard_url — open in browser for visual report
 
 curl http://localhost:8000/status/{run_id}
-curl http://localhost:8000/report/{run_id}
+curl http://localhost:8000/report/{run_id}          # raw JSON
+open http://localhost:8000/dashboard/{run_id}       # visual dashboard
 ```
 
 ## Configuration

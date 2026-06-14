@@ -140,6 +140,8 @@ class LLMClient:
                     )
                 }
             )
+        if "generate a playwright automation script" in lower:
+            return json.dumps({"scripts": []})
         if "playwright" in lower or "script" in lower:
             return json.dumps({"scripts": []})
         return json.dumps({"status": "ok"})

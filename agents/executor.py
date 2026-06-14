@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from playwright.async_api import async_playwright
@@ -14,6 +15,21 @@ from state.schema import AgentState
 from storage.script_store import ScriptStore
 
 logger = logging.getLogger(__name__)
+
+
+def _keep_final_screenshot_only(result: dict[str, Any], captured: list[str]) -> dict[str, Any]:
+    """Retain only the last screenshot — the final flow outcome."""
+    screenshots = captured or list(result.get("screenshots", []))
+    if not screenshots:
+        return result
+
+    final_shot = screenshots[-1]
+    for path in screenshots[:-1]:
+        Path(path).unlink(missing_ok=True)
+
+    updated = dict(result)
+    updated["screenshots"] = [final_shot]
+    return updated
 
 
 async def _run_script(
@@ -32,12 +48,27 @@ async def _run_script(
         browser = await playwright.chromium.launch(headless=headless)
         context = await browser.new_context(viewport={"width": 1280, "height": 720})
         page = await context.new_page()
+        captured_screenshots: list[str] = []
+        original_screenshot = page.screenshot
+
+        async def screenshot_wrapper(*args: Any, **kwargs: Any) -> Any:
+            response = await original_screenshot(*args, **kwargs)
+            path = kwargs.get("path")
+            if path is None and args:
+                path = args[0]
+            if path:
+                captured_screenshots.append(str(path))
+            return response
+
+        page.screenshot = screenshot_wrapper  # type: ignore[method-assign]
+
         try:
             result = await run_fn(page, url, screenshot_dir)
         finally:
             await context.close()
             await browser.close()
-    return result
+
+    return _keep_final_screenshot_only(result, captured_screenshots)
 
 
 def _current_flow(state: AgentState) -> str:

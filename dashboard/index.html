@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Browser Automation — Test Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --border: #2d3a4f;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --success: #22c55e;
+      --fail: #ef4444;
+      --warn: #f59e0b;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+    header p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.875rem; }
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: calc(100vh - 72px);
+    }
+    aside {
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      padding: 1rem;
+      overflow-y: auto;
+    }
+    aside h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin: 0 0 0.75rem;
+    }
+    .run-item {
+      display: block;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--bg);
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .run-item:hover, .run-item.active {
+      border-color: var(--accent);
+      background: var(--surface2);
+    }
+    .run-item .intent { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.35rem; }
+    .run-item .meta { font-size: 0.75rem; color: var(--muted); }
+    main { padding: 1.5rem 2rem; overflow-y: auto; }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge.success { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+    .badge.failed, .badge.fail { background: rgba(239, 68, 68, 0.2); color: var(--fail); }
+    .badge.escalated { background: rgba(245, 158, 11, 0.2); color: var(--warn); }
+    .badge.running { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+    .badge.regression { background: rgba(245, 158, 11, 0.2); color: var(--warn); }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .card label {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.35rem;
+    }
+    .card .value { font-size: 1.5rem; font-weight: 700; }
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .section h3 { margin: 0 0 1rem; font-size: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th, td { padding: 0.65rem 0.5rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
+    .screenshots {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .shot {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .shot img {
+      width: 100%;
+      display: block;
+      background: #000;
+    }
+    .shot figcaption {
+      padding: 0.6rem 0.75rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .empty {
+      color: var(--muted);
+      padding: 2rem;
+      text-align: center;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+    }
+    .url-line { color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem; }
+    .url-line a { color: var(--accent); }
+    .json-link { font-size: 0.8rem; color: var(--muted); }
+    .json-link a { color: var(--accent); }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Browser Automation Test Dashboard</h1>
+      <p>Visual execution reports for your automation suite</p>
+    </div>
+    <a class="json-link" href="/docs" target="_blank">API docs</a>
+  </header>
+  <div class="layout">
+    <aside>
+      <h2>Recent runs</h2>
+      <div id="run-list"></div>
+    </aside>
+    <main id="main-content">
+      <div class="empty">Select a run from the sidebar or wait for a new execution.</div>
+    </main>
+  </div>
+  <script>
+    const runListEl = document.getElementById("run-list");
+    const mainEl = document.getElementById("main-content");
+    let selectedRunId = null;
+    let pollTimer = null;
+
+    function badge(status) {
+      const s = (status || "unknown").toLowerCase();
+      return `<span class="badge ${s}">${status || "unknown"}</span>`;
+    }
+
+    function screenshotUrl(path) {
+      if (!path) return "";
+      const normalized = path.replace(/^\/+/, "");
+      return "/" + normalized.split("/").map(encodeURIComponent).join("/");
+    }
+
+    function formatTime(iso) {
+      if (!iso) return "—";
+      try { return new Date(iso).toLocaleString(); } catch { return iso; }
+    }
+
+    async function fetchRuns() {
+      const res = await fetch("/api/runs");
+      if (!res.ok) return [];
+      return res.json();
+    }
+
+    async function fetchReport(runId) {
+      const res = await fetch(`/report/${runId}`);
+      if (!res.ok) throw new Error("Report not found");
+      return res.json();
+    }
+
+    async function fetchStatus(runId) {
+      const res = await fetch(`/status/${runId}`);
+      if (!res.ok) return null;
+      return res.json();
+    }
+
+    function renderRunList(runs) {
+      if (!runs.length) {
+        runListEl.innerHTML = "<div class='empty'>No runs yet. POST to /run to start.</div>";
+        return;
+      }
+      runListEl.innerHTML = runs.map((r) => `
+        <a class="run-item ${r.run_id === selectedRunId ? "active" : ""}" href="/dashboard/${r.run_id}" data-run-id="${r.run_id}">
+          <div class="intent">${r.intent || "Untitled run"}</div>
+          <div class="meta">${badge(r.status)} · ${r.flows_passed}/${r.flows_total} flows</div>
+          <div class="meta">${formatTime(r.generated_at)}</div>
+        </a>
+      `).join("");
+      runListEl.querySelectorAll(".run-item").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          selectRun(el.dataset.runId);
+        });
+      });
+    }
+
+    function renderReport(report, status) {
+      const flows = report.execution_results || [];
+      const shots = report.screenshots || [];
+      const isRunning = status && status.progress < 100;
+
+      mainEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+          <h2 style="margin:0;font-size:1.35rem;">${report.intent || "Test run"}</h2>
+          ${badge(report.status)}
+        </div>
+        <div class="url-line">Target: <a href="${report.url}" target="_blank" rel="noopener">${report.url || "—"}</a></div>
+        <div class="url-line">Run ID: <code>${report.run_id}</code> · ${formatTime(report.generated_at)}</div>
+        ${isRunning ? `<div class="section"><p>Run in progress… (${status.progress}%)</p></div>` : ""}
+        <div class="cards">
+          <div class="card"><label>Flows passed</label><div class="value">${report.flows_passed ?? 0}/${report.flows_total ?? 0}</div></div>
+          <div class="card"><label>Auto repairs</label><div class="value">${report.auto_repairs ?? 0}</div></div>
+          <div class="card"><label>Retries</label><div class="value">${report.retries_used ?? 0}</div></div>
+          <div class="card"><label>Regressions</label><div class="value">${report.regressions ?? 0}</div></div>
+        </div>
+        <div class="section">
+          <h3>Flow execution</h3>
+          ${flows.length ? `
+            <table>
+              <thead><tr><th>Flow</th><th>Status</th><th>Home page</th><th>Error</th></tr></thead>
+              <tbody>
+                ${flows.map((f) => `
+                  <tr>
+                    <td><strong>${f.flow || "—"}</strong></td>
+                    <td>${badge(f.status)}</td>
+                    <td>${f.home_page_verified ? "✓ Verified" : "—"}</td>
+                    <td style="color:var(--fail);font-size:0.8rem;">${f.error || ""}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          ` : "<div class='empty'>No flow results yet.</div>"}
+        </div>
+        <div class="section">
+          <h3>Screenshots</h3>
+          ${shots.length ? `
+            <div class="screenshots">
+              ${shots.map((s) => `
+                <figure class="shot">
+                  <a href="${screenshotUrl(s)}" target="_blank" rel="noopener">
+                    <img src="${screenshotUrl(s)}" alt="${s}" loading="lazy" />
+                  </a>
+                  <figcaption>${s}</figcaption>
+                </figure>
+              `).join("")}
+            </div>
+          ` : "<div class='empty'>No screenshots captured.</div>"}
+        </div>
+        <p class="json-link">Raw JSON: <a href="/report/${report.run_id}" target="_blank">/report/${report.run_id}</a></p>
+      `;
+    }
+
+    async function selectRun(runId) {
+      selectedRunId = runId;
+      history.replaceState(null, "", `/dashboard/${runId}`);
+      const runs = await fetchRuns();
+      renderRunList(runs);
+      try {
+        const report = await fetchReport(runId);
+        const status = await fetchStatus(runId);
+        renderReport(report, status);
+        if (pollTimer) clearInterval(pollTimer);
+        if (status && status.progress < 100) {
+          pollTimer = setInterval(() => selectRun(runId), 2000);
+        }
+      } catch (err) {
+        mainEl.innerHTML = `<div class="empty">Could not load report: ${err.message}</div>`;
+      }
+    }
+
+    async function init() {
+      const pathMatch = window.location.pathname.match(/\/dashboard\/([^/]+)/);
+      const runs = await fetchRuns();
+      renderRunList(runs);
+      if (pathMatch) {
+        await selectRun(pathMatch[1]);
+      } else if (runs.length) {
+        await selectRun(runs[0].run_id);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

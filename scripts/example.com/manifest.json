@@ -1,0 +1,49 @@
+{
+  "url": "https://example.com/",
+  "flows": {
+    "homepage": {
+      "flow_hash": "cb4f31c4e8e87753",
+      "script_path": "homepage.py",
+      "source": "repaired",
+      "repair_count": 1,
+      "last_status": "failed",
+      "updated_at": "2026-06-14T06:50:12.540287+00:00"
+    },
+    "navigation": {
+      "flow_hash": "137f7fa12da60924",
+      "script_path": "navigation.py",
+      "source": "generated",
+      "repair_count": 0,
+      "last_status": "pending",
+      "updated_at": "2026-06-14T06:37:18.235440+00:00"
+    },
+    "search": {
+      "flow_hash": "02c4917866e85719",
+      "script_path": "search.py",
+      "source": "generated",
+      "repair_count": 0,
+      "last_status": "pending",
+      "updated_at": "2026-06-14T06:37:18.235667+00:00"
+    },
+    "content_view": {
+      "flow_hash": "5925cd8d717a1975",
+      "script_path": "content_view.py",
+      "source": "generated",
+      "repair_count": 0,
+      "last_status": "pending",
+      "updated_at": "2026-06-14T06:37:18.235867+00:00"
+    },
+    "flow": {
+      "flow_hash": "29494402b738b7cb",
+      "script_path": "flow.py",
+      "source": "repaired",
+      "repair_count": 0,
+      "last_status": "success",
+      "updated_at": "2026-06-14T06:50:11.465882+00:00",
+      "archived": true,
+      "archived_at": "2026-06-14T06:50:11.525350+00:00"
+    }
+  },
+  "intent": "Test homepage flow",
+  "updated_at": "2026-06-14T06:50:12.540294+00:00"
+}

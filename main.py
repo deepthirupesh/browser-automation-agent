@@ -10,11 +10,16 @@ from typing import Any
 
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, HttpUrl
 
 from config import get_settings
 from orchestrator.graph import run_pipeline
 from storage.redis_store import RunStore
+from storage.report_index import list_reports, load_report
+
+DASHBOARD_HTML = Path(__file__).resolve().parent / "dashboard" / "index.html"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +38,7 @@ class RunRequest(BaseModel):
 class RunResponse(BaseModel):
     run_id: str
     status: str
+    dashboard_url: str
 
 
 class StatusResponse(BaseModel):
@@ -47,25 +53,9 @@ def _ensure_dirs() -> None:
         settings.baseline_dir,
         settings.reports_dir,
         settings.scripts_dir,
+        Path("screenshots"),
     ):
         path.mkdir(parents=True, exist_ok=True)
-
-
-def _execute_run(run_id: str, url: str, intent: str) -> None:
-    run_store.set_status(run_id, "running", progress=10)
-    try:
-        result = run_pipeline(url=url, intent=intent, run_id=run_id)
-        report = result.get("final_report") or {}
-        run_store.set_report(run_id, report)
-        final_status = report.get("status", result.get("status", "success"))
-        run_store.set_status(run_id, final_status, progress=100)
-    except Exception as exc:
-        logger.exception("Run failed run_id=%s", run_id)
-        run_store.set_status(run_id, "failed", progress=100)
-        run_store.set_report(
-            run_id,
-            {"run_id": run_id, "status": "failed", "error": str(exc)},
-        )
 
 
 @asynccontextmanager
@@ -80,6 +70,28 @@ app = FastAPI(
     description="Multi-agent browser automation with LangGraph orchestration",
     lifespan=lifespan,
 )
+
+screenshots_root = Path("screenshots")
+if screenshots_root.exists():
+    app.mount("/screenshots", StaticFiles(directory=str(screenshots_root)), name="screenshots")
+
+
+@app.get("/")
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/dashboard")
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/dashboard/{run_id}", response_class=HTMLResponse)
+def dashboard(run_id: str | None = None) -> HTMLResponse:
+    if not DASHBOARD_HTML.exists():
+        raise HTTPException(status_code=500, detail="Dashboard template not found")
+    return HTMLResponse(DASHBOARD_HTML.read_text(encoding="utf-8"))
+
+
+@app.get("/api/runs")
+def api_list_runs(limit: int = 50) -> list[dict[str, Any]]:
+    return list_reports(limit=limit)
 
 
 @app.get("/health")
@@ -97,7 +109,16 @@ def start_run(request: RunRequest, background_tasks: BackgroundTasks) -> RunResp
         str(request.url),
         request.intent,
     )
-    return RunResponse(run_id=run_id, status="running")
+    return RunResponse(
+        run_id=run_id,
+        status="running",
+        dashboard_url=f"/dashboard/{run_id}",
+    )
+
+
+@app.get("/run/{run_id}/dashboard")
+def run_dashboard_redirect(run_id: str) -> RedirectResponse:
+    return RedirectResponse(url=f"/dashboard/{run_id}")
 
 
 @app.get("/status/{run_id}", response_model=StatusResponse)
@@ -112,11 +133,30 @@ def get_status(run_id: str) -> StatusResponse:
 def get_report(run_id: str) -> dict[str, Any]:
     report = run_store.get_report(run_id)
     if not report:
+        report = load_report(run_id)
+    if not report:
         status = run_store.get_status(run_id)
         if not status:
             raise HTTPException(status_code=404, detail="Run not found")
         return {"run_id": run_id, "status": status["status"], "progress": status.get("progress", 0)}
     return report
+
+
+def _execute_run(run_id: str, url: str, intent: str) -> None:
+    run_store.set_status(run_id, "running", progress=10)
+    try:
+        result = run_pipeline(url=url, intent=intent, run_id=run_id)
+        report = result.get("final_report") or {}
+        run_store.set_report(run_id, report)
+        final_status = report.get("status", result.get("status", "success"))
+        run_store.set_status(run_id, final_status, progress=100)
+    except Exception as exc:
+        logger.exception("Run failed run_id=%s", run_id)
+        run_store.set_status(run_id, "failed", progress=100)
+        run_store.set_report(
+            run_id,
+            {"run_id": run_id, "status": "failed", "error": str(exc)},
+        )
 
 
 if __name__ == "__main__":

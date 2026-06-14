@@ -21,5 +21,6 @@
   "flows_reused": [],
   "flows_generated": [],
   "flows_regenerated": [],
-  "generated_at": "2026-06-14T02:47:10.227960+00:00"
+  "generated_at": "2026-06-14T06:50:11.473379+00:00",
+  "dashboard_url": "/dashboard/test-run"
 }

@@ -7,15 +7,17 @@ import textwrap
 from typing import Any
 
 from llm.client import LLMClient
-from agents.script_generator import build_script, persist_script_for_flow, _is_login_flow
+from agents.script_generator import build_script, persist_script_for_flow
 from state.schema import AgentState
 
 logger = logging.getLogger(__name__)
 
 
 def _current_flow(state: AgentState) -> str:
-    flows = state.get("discovered_flows", ["flow"])
+    flows = state.get("discovered_flows") or ["flow"]
     index = state.get("current_script_index", 0)
+    if not flows:
+        return "flow"
     return flows[min(index, len(flows) - 1)]
 
 
@@ -91,19 +93,18 @@ def repair_script(state: AgentState) -> dict[str, Any]:
 
     repaired_script = failed_script
     try:
-        if _is_login_flow(flow):
-            repaired_script = build_script(flow, state["url"])
-        elif client.settings.llm_enabled:
+        if client.settings.llm_enabled:
             system = client.load_prompt("repair")
             response = client.complete_json(prompt, system=system)
             repaired_script = response.get("repaired_script", failed_script)
-            if _is_login_flow(flow) and "home_page_verified" not in repaired_script:
-                repaired_script = build_script(flow, state["url"])
         else:
             repaired_script = _apply_heuristic_repair(failed_script, diagnosis)
     except Exception as exc:
         logger.warning("Repair fallback: %s", exc)
         repaired_script = _apply_heuristic_repair(failed_script, diagnosis)
+
+    if not repaired_script or "async def run" not in repaired_script:
+        repaired_script = build_script(flow, state["url"], state["intent"])
 
     retry_count = state.get("retry_count", 0) + 1
     auto_repairs = state.get("auto_repairs", 0) + 1

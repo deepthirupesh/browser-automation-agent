@@ -38,7 +38,7 @@ def base_state() -> AgentState:
 def test_flow_discovery_returns_flows(base_state: AgentState) -> None:
     result = discover_flows(base_state)
     flows = result["discovered_flows"]
-    assert flows == ["login"]
+    assert flows == ["login", "browse_products", "add_to_cart", "checkout", "payment"]
 
 
 def test_script_generator_creates_scripts(base_state: AgentState, tmp_path, monkeypatch) -> None:

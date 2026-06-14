@@ -29,6 +29,7 @@ def test_run_and_status_flow() -> None:
     data = response.json()
     assert "run_id" in data
     assert data["status"] == "running"
+    assert data["dashboard_url"].startswith("/dashboard/")
 
     run_id = data["run_id"]
     for _ in range(60):
@@ -43,3 +44,15 @@ def test_run_and_status_flow() -> None:
     assert report_resp.status_code == 200
     report = report_resp.json()
     assert report.get("flows_total", 0) > 0 or report.get("status") in {"success", "failed", "running"}
+
+
+def test_dashboard_page() -> None:
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert "Browser Automation Test Dashboard" in response.text
+
+
+def test_api_runs_list() -> None:
+    response = client.get("/api/runs")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
