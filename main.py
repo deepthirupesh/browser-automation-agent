@@ -50,6 +50,49 @@ class StatusResponse(BaseModel):
     progress: int
 
 
+def _request_has_ui_settings(request: RunRequest) -> bool:
+    return any(
+        getattr(request, field) is not None
+        for field in (
+            "openrouter_api_key",
+            "openrouter_model",
+            "use_mock_llm",
+            "max_retries",
+            "max_repair_before_regenerate",
+        )
+    )
+
+
+def _build_settings_override(request: RunRequest) -> dict[str, Any] | None:
+    """Build per-run settings from the UI/API request body."""
+    if not _request_has_ui_settings(request):
+        return None
+
+    settings = get_settings()
+    use_mock = request.use_mock_llm if request.use_mock_llm is not None else False
+    api_key = (request.openrouter_api_key or "").strip()
+    model = (request.openrouter_model or "").strip() or settings.openrouter_model
+
+    if not use_mock and not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="OpenRouter API key is required when mock LLM is disabled. "
+            "Add a key in Settings or enable Use Mock LLM.",
+        )
+
+    override: dict[str, Any] = {
+        "source": "ui",
+        "openrouter_api_key": api_key,
+        "openrouter_model": model,
+        "use_mock_llm": use_mock,
+    }
+    if request.max_retries is not None:
+        override["max_retries"] = request.max_retries
+    if request.max_repair_before_regenerate is not None:
+        override["max_repair_before_regenerate"] = request.max_repair_before_regenerate
+    return override
+
+
 def _ensure_dirs() -> None:
     settings = get_settings()
     for path in (
@@ -83,9 +126,10 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
-        # Add your production frontend URLs here:
-        # "https://your-vercel-domain.vercel.app",
-        # "https://yourdomain.com",
+        # Replace with your actual Vercel frontend URL after deploying:
+        "https://browser-automation-agent.vercel.app",
+        # If Vercel assigns a different URL, add it here too:
+        # "https://your-project-name-xyz123.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -117,24 +161,14 @@ def start_run(request: RunRequest, background_tasks: BackgroundTasks) -> RunResp
     run_id = str(uuid.uuid4())
     run_store.set_status(run_id, "running", progress=0)
 
-    override: dict = {}
-    if request.openrouter_api_key is not None:
-        override["openrouter_api_key"] = request.openrouter_api_key
-    if request.openrouter_model is not None:
-        override["openrouter_model"] = request.openrouter_model
-    if request.use_mock_llm is not None:
-        override["use_mock_llm"] = request.use_mock_llm
-    if request.max_retries is not None:
-        override["max_retries"] = request.max_retries
-    if request.max_repair_before_regenerate is not None:
-        override["max_repair_before_regenerate"] = request.max_repair_before_regenerate
+    settings_override = _build_settings_override(request)
 
     background_tasks.add_task(
         _execute_run,
         run_id,
         str(request.url),
         request.intent,
-        override or None,
+        settings_override,
     )
     return RunResponse(
         run_id=run_id,
